@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
     jwt_audience: str = "authenticated"
 
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+
     @property
     def jwks_url(self) -> str:
         """Supabase publishes signing keys here for asymmetric (RS256/ES256) JWTs."""
