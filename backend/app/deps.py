@@ -1,10 +1,3 @@
-"""Request authentication.
-
-Access tokens are verified against Supabase's JWKS endpoint (asymmetric RS256/
-ES256), never a shared HS256 secret — the rule in CLAUDE.md §4. The JWKS client
-caches keys in-process, so verification adds no network round-trip after warm-up.
-"""
-
 from functools import lru_cache
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -22,6 +15,7 @@ class CurrentUser(BaseModel):
     id: str  # the `sub` claim — the tenant key every row is scoped to
     email: str | None
     role: str | None
+    access_token: str
 
 
 @lru_cache
@@ -75,4 +69,5 @@ async def get_current_user(
         id=sub,
         email=claims.get("email"),
         role=claims.get("role"),
+        access_token=token,
     )

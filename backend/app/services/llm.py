@@ -121,5 +121,9 @@ async def complete(
     raise last or ProviderError("no providers configured")
 
 
-def grader_providers(settings: Settings) -> list[LLMProvider]:
+def gemini_providers(settings: Settings) -> list[LLMProvider]:
     return [GeminiProvider(settings.gemini_api_key, settings.gemini_model)]
+
+
+def grader_providers(settings: Settings) -> list[LLMProvider]:
+    return gemini_providers(settings)
