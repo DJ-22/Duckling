@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     # Bypasses RLS — backend-only, never sent to the client.
     supabase_secret_key: str = ""
+    # Public by design (protected by RLS). Used as the PostgREST apikey in the
+    # tenant-isolation tests so requests run as the `authenticated` role.
+    supabase_publishable_key: str = ""
     frontend_origin: str = "http://localhost:5173"
     jwt_audience: str = "authenticated"
 
