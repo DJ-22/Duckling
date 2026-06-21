@@ -74,3 +74,66 @@ async def match_chunks(
             "match_count": k,
         },
     )
+
+
+async def get_owned_concept(db: SupabaseRest, concept_id: str) -> dict | None:
+    rows = await db.select(
+        "concepts",
+        params={"id": f"eq.{concept_id}", "select": "id,subject_id,name,rubric"},
+    )
+    return rows[0] if rows else None
+
+
+async def find_in_progress_session(db: SupabaseRest, concept_id: str) -> dict | None:
+    rows = await db.select(
+        "sessions",
+        params={
+            "concept_id": f"eq.{concept_id}",
+            "status": "eq.in_progress",
+            "select": "id,concept_id,status,transcript",
+            "limit": "1",
+        },
+    )
+    return rows[0] if rows else None
+
+
+async def create_session(db: SupabaseRest, *, user_id: str, concept_id: str) -> dict:
+    rows = await db.insert(
+        "sessions", {"user_id": user_id, "concept_id": concept_id, "status": "in_progress"}
+    )
+    return rows[0]
+
+
+async def get_owned_session(db: SupabaseRest, session_id: str) -> dict | None:
+    rows = await db.select(
+        "sessions",
+        params={"id": f"eq.{session_id}", "select": "id,concept_id,status,transcript"},
+    )
+    return rows[0] if rows else None
+
+
+async def save_transcript(
+    db: SupabaseRest, session_id: str, transcript: list[dict], updated_at: str
+) -> None:
+    await db.update(
+        "sessions",
+        params={"id": f"eq.{session_id}"},
+        values={"transcript": transcript, "updated_at": updated_at},
+        returning=False,
+    )
+
+
+async def complete_session(
+    db: SupabaseRest, session_id: str, results: dict, completed_at: str
+) -> dict:
+    rows = await db.update(
+        "sessions",
+        params={"id": f"eq.{session_id}"},
+        values={
+            "status": "completed",
+            "results": results,
+            "completed_at": completed_at,
+            "updated_at": completed_at,
+        },
+    )
+    return rows[0]

@@ -49,6 +49,14 @@ class SupabaseRest:
         prefer = "return=representation" if returning else "return=minimal"
         return await self._request("POST", f"/rest/v1/{table}", json=rows, prefer=prefer)  # type: ignore[return-value]
 
+    async def update(
+        self, table: str, *, params: dict, values: dict, returning: bool = True
+    ) -> list[dict] | None:
+        prefer = "return=representation" if returning else "return=minimal"
+        return await self._request(  # type: ignore[return-value]
+            "PATCH", f"/rest/v1/{table}", params=params, json=values, prefer=prefer
+        )
+
     async def rpc(self, fn: str, payload: dict) -> object:
         return await self._request("POST", f"/rest/v1/rpc/{fn}", json=payload)
 

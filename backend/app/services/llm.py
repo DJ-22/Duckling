@@ -127,3 +127,7 @@ def gemini_providers(settings: Settings) -> list[LLMProvider]:
 
 def grader_providers(settings: Settings) -> list[LLMProvider]:
     return gemini_providers(settings)
+
+
+def persona_providers(settings: Settings) -> list[LLMProvider]:
+    return [GeminiProvider(settings.gemini_api_key, settings.persona_model)]
