@@ -2,7 +2,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from ..db import repo
 from ..db.client import SupabaseRest
-from . import grader, persona, retrieval
+from . import grader, persona, retrieval, student
 
 RETRIEVE_K = 5
 
@@ -35,25 +35,37 @@ def _comprehension(transcript: list[dict]) -> int:
     return min(100, max(0, total))
 
 
+def _felt(session: dict) -> int | None:
+    return (session.get("results") or {}).get("felt")
+
+
 def _view(session: dict, concept: dict) -> dict:
     transcript = session.get("transcript") or []
+    comprehension = _comprehension(transcript)
     return {
         "id": session["id"],
         "concept_id": session["concept_id"],
         "concept_name": concept["name"],
         "status": session["status"],
-        "comprehension": _comprehension(transcript),
+        "comprehension": comprehension,
+        "student_state": student.comprehension_to_state(comprehension),
+        "felt": _felt(session),
         "transcript": transcript,
     }
 
 
-async def start_session(db: SupabaseRest, *, user_id: str, concept_id: str) -> dict:
+async def start_session(
+    db: SupabaseRest, *, user_id: str, concept_id: str, felt: int | None = None
+) -> dict:
     concept = await repo.get_owned_concept(db, concept_id)
     if concept is None:
         raise ConceptNotFound(concept_id)
-    # Resume the existing open session for this concept rather than forking a new one.
+    # Resume the existing open session for this concept rather than forking a new one;
+    # a resumed session keeps its original felt rating.
     existing = await repo.find_in_progress_session(db, concept_id)
-    session = existing or await repo.create_session(db, user_id=user_id, concept_id=concept_id)
+    session = existing or await repo.create_session(
+        db, user_id=user_id, concept_id=concept_id, felt=felt
+    )
     return _view(session, concept)
 
 
@@ -102,12 +114,14 @@ async def add_turn(db: SupabaseRest, *, session_id: str, explanation: str) -> di
     transcript.append({"user": explanation, "grade": grade.model_dump(), "student": question})
     await repo.save_transcript(db, session_id, transcript, _now())
 
+    comprehension = _comprehension(transcript)
     return {
         "turn_index": len(transcript) - 1,
         "question": question,
         "overall": grade.overall,
         "delta": grade.student_comprehension_delta,
-        "comprehension": _comprehension(transcript),
+        "comprehension": comprehension,
+        "student_state": student.comprehension_to_state(comprehension),
         "weakest_gap": grade.weakest_gap,
     }
 
@@ -116,9 +130,26 @@ async def complete_session(db: SupabaseRest, *, session_id: str) -> dict:
     session = await repo.get_owned_session(db, session_id)
     if session is None:
         raise SessionNotFound(session_id)
+    concept = await repo.get_owned_concept(db, session["concept_id"])
+    if concept is None:
+        raise ConceptNotFound(session["concept_id"])
 
     transcript = session.get("transcript") or []
     final_overall = transcript[-1]["grade"]["overall"] if transcript else 0
-    results = {"comprehension": _comprehension(transcript), "final_overall": final_overall}
+    felt = _felt(session)
+
+    results = {
+        "comprehension": _comprehension(transcript),
+        "final_overall": final_overall,
+        "felt": felt,
+        "understanding_map": [
+            {
+                "concept_id": session["concept_id"],
+                "concept_name": concept["name"],
+                "felt": felt,
+                "shown": final_overall,
+            }
+        ],
+    }
     await repo.complete_session(db, session_id, results, _now())
     return results

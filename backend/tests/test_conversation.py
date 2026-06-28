@@ -87,7 +87,7 @@ def flow():
                 concept_id = concepts[0]["id"]
 
                 started = await conversation.start_session(
-                    db, user_id=user_id, concept_id=concept_id
+                    db, user_id=user_id, concept_id=concept_id, felt=30
                 )
                 turn1 = await conversation.add_turn(db, session_id=started["id"], explanation=VAGUE)
                 after1 = await conversation.get_session(db, session_id=started["id"])
@@ -123,7 +123,6 @@ def test_first_turn_returns_a_probing_question(flow):
 
 
 def test_turn_is_written_through_immediately(flow):
-    # A fresh read after one turn rehydrates that turn — the write-through resume path.
     transcript = flow["after1"]["transcript"]
     assert len(transcript) == 1
     assert set(transcript[0]) >= {"user", "grade", "student"}
@@ -139,7 +138,24 @@ def test_resume_rehydrates_full_conversation(flow):
 
 
 def test_completion_closes_session(flow):
-    assert flow["completed"]["final_overall"] == pytest.approx(
-        flow["completed"]["final_overall"]
-    )
     assert 0 <= flow["completed"]["comprehension"] <= 100
+    assert 0 <= flow["completed"]["final_overall"] <= 100
+
+
+def test_felt_rating_persists_from_start(flow):
+    assert flow["started"]["felt"] == 30
+    assert flow["resumed"]["felt"] == 30
+
+
+def test_student_state_is_exposed(flow):
+    assert flow["started"]["student_state"] == "confused"
+    assert flow["turn2"]["student_state"] in {"confused", "thinking", "clicks"}
+
+
+def test_understanding_map_contrasts_felt_and_shown(flow):
+    entries = flow["completed"]["understanding_map"]
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry["felt"] == 30
+    assert 0 <= entry["shown"] <= 100
+    assert entry["concept_name"]

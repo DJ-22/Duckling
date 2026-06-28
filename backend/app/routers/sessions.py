@@ -3,7 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..config import get_settings
 from ..db.client import SupabaseRest
 from ..deps import CurrentUser, get_current_user
-from ..schemas.sessions import CompletionResult, SessionView, TurnRequest, TurnResponse
+from ..schemas.sessions import (
+    CompletionResult,
+    SessionView,
+    StartSessionRequest,
+    TurnRequest,
+    TurnResponse,
+)
 from ..services import conversation
 
 router = APIRouter(prefix="/api", tags=["sessions"])
@@ -19,11 +25,15 @@ def _db(user: CurrentUser) -> SupabaseRest:
     status_code=status.HTTP_201_CREATED,
 )
 async def start_session(
-    concept_id: str, user: CurrentUser = Depends(get_current_user)
+    concept_id: str,
+    body: StartSessionRequest = StartSessionRequest(),
+    user: CurrentUser = Depends(get_current_user),
 ) -> SessionView:
     try:
         return SessionView(
-            **await conversation.start_session(_db(user), user_id=user.id, concept_id=concept_id)
+            **await conversation.start_session(
+                _db(user), user_id=user.id, concept_id=concept_id, felt=body.felt
+            )
         )
     except conversation.ConceptNotFound:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="concept not found")

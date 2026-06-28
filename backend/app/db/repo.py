@@ -90,24 +90,27 @@ async def find_in_progress_session(db: SupabaseRest, concept_id: str) -> dict | 
         params={
             "concept_id": f"eq.{concept_id}",
             "status": "eq.in_progress",
-            "select": "id,concept_id,status,transcript",
+            "select": "id,concept_id,status,transcript,results",
             "limit": "1",
         },
     )
     return rows[0] if rows else None
 
 
-async def create_session(db: SupabaseRest, *, user_id: str, concept_id: str) -> dict:
-    rows = await db.insert(
-        "sessions", {"user_id": user_id, "concept_id": concept_id, "status": "in_progress"}
-    )
+async def create_session(
+    db: SupabaseRest, *, user_id: str, concept_id: str, felt: int | None = None
+) -> dict:
+    row: dict = {"user_id": user_id, "concept_id": concept_id, "status": "in_progress"}
+    if felt is not None:
+        row["results"] = {"felt": felt}
+    rows = await db.insert("sessions", row)
     return rows[0]
 
 
 async def get_owned_session(db: SupabaseRest, session_id: str) -> dict | None:
     rows = await db.select(
         "sessions",
-        params={"id": f"eq.{session_id}", "select": "id,concept_id,status,transcript"},
+        params={"id": f"eq.{session_id}", "select": "id,concept_id,status,transcript,results"},
     )
     return rows[0] if rows else None
 
