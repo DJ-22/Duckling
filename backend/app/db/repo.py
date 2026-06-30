@@ -140,3 +140,82 @@ async def complete_session(
         },
     )
     return rows[0]
+
+
+async def get_mastery(db: SupabaseRest, concept_id: str) -> dict | None:
+    rows = await db.select(
+        "mastery",
+        params={"concept_id": f"eq.{concept_id}", "select": "ease,interval,comprehension"},
+    )
+    return rows[0] if rows else None
+
+
+async def upsert_mastery(
+    db: SupabaseRest,
+    *,
+    user_id: str,
+    concept_id: str,
+    comprehension: int,
+    ease: float,
+    interval: int,
+    next_review: str,
+    updated_at: str,
+) -> None:
+    await db.upsert(
+        "mastery",
+        {
+            "user_id": user_id,
+            "concept_id": concept_id,
+            "comprehension": comprehension,
+            "ease": ease,
+            "interval": interval,
+            "next_review": next_review,
+            "updated_at": updated_at,
+        },
+        on_conflict="user_id,concept_id",
+        returning=False,
+    )
+
+
+async def create_subject(db: SupabaseRest, *, user_id: str, name: str) -> dict:
+    rows = await db.insert("subjects", {"user_id": user_id, "name": name})
+    return rows[0]
+
+
+async def list_subjects(db: SupabaseRest) -> list[dict]:
+    return await db.select(
+        "subjects", params={"select": "id,name,created_at", "order": "created_at.desc"}
+    )
+
+
+async def list_concepts(db: SupabaseRest, subject_id: str) -> list[dict]:
+    return await db.select(
+        "concepts",
+        params={"subject_id": f"eq.{subject_id}", "select": "id,name", "order": "name.asc"},
+    )
+
+
+async def list_mastery(db: SupabaseRest) -> list[dict]:
+    # Embeds the concept so the mastery map can show concept name + subject without
+    # a second round-trip.
+    return await db.select(
+        "mastery",
+        params={"select": "concept_id,comprehension,next_review,concepts(name,subject_id)"},
+    )
+
+
+async def list_in_progress_sessions(db: SupabaseRest) -> list[dict]:
+    return await db.select(
+        "sessions",
+        params={
+            "status": "eq.in_progress",
+            "select": "id,concept_id,updated_at,concepts(name)",
+            "order": "updated_at.desc",
+        },
+    )
+
+
+async def list_completed_session_dates(db: SupabaseRest) -> list[dict]:
+    return await db.select(
+        "sessions", params={"status": "eq.completed", "select": "completed_at"}
+    )

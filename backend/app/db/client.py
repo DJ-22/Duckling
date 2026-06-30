@@ -57,6 +57,18 @@ class SupabaseRest:
             "PATCH", f"/rest/v1/{table}", params=params, json=values, prefer=prefer
         )
 
+    async def upsert(
+        self, table: str, rows: object, *, on_conflict: str, returning: bool = True
+    ) -> list[dict] | None:
+        resolution = "return=representation" if returning else "return=minimal"
+        return await self._request(  # type: ignore[return-value]
+            "POST",
+            f"/rest/v1/{table}",
+            params={"on_conflict": on_conflict},
+            json=rows,
+            prefer=f"resolution=merge-duplicates,{resolution}",
+        )
+
     async def rpc(self, fn: str, payload: dict) -> object:
         return await self._request("POST", f"/rest/v1/rpc/{fn}", json=payload)
 

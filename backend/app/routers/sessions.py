@@ -73,7 +73,9 @@ async def complete_session(
 ) -> CompletionResult:
     try:
         return CompletionResult(
-            **await conversation.complete_session(_db(user), session_id=session_id)
+            **await conversation.complete_session(
+                _db(user), session_id=session_id, user_id=user.id
+            )
         )
     except conversation.SessionNotFound:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="session not found")

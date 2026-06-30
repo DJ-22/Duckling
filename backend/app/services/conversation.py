@@ -1,5 +1,6 @@
 from __future__ import annotations
 from datetime import datetime, timezone
+from .. import srs
 from ..db import repo
 from ..db.client import SupabaseRest
 from . import grader, persona, retrieval, student
@@ -126,7 +127,7 @@ async def add_turn(db: SupabaseRest, *, session_id: str, explanation: str) -> di
     }
 
 
-async def complete_session(db: SupabaseRest, *, session_id: str) -> dict:
+async def complete_session(db: SupabaseRest, *, session_id: str, user_id: str) -> dict:
     session = await repo.get_owned_session(db, session_id)
     if session is None:
         raise SessionNotFound(session_id)
@@ -137,6 +138,7 @@ async def complete_session(db: SupabaseRest, *, session_id: str) -> dict:
     transcript = session.get("transcript") or []
     final_overall = transcript[-1]["grade"]["overall"] if transcript else 0
     felt = _felt(session)
+    concept_id = session["concept_id"]
 
     results = {
         "comprehension": _comprehension(transcript),
@@ -144,12 +146,33 @@ async def complete_session(db: SupabaseRest, *, session_id: str) -> dict:
         "felt": felt,
         "understanding_map": [
             {
-                "concept_id": session["concept_id"],
+                "concept_id": concept_id,
                 "concept_name": concept["name"],
                 "felt": felt,
                 "shown": final_overall,
             }
         ],
     }
-    await repo.complete_session(db, session_id, results, _now())
+
+    now_iso = _now()
+    await repo.complete_session(db, session_id, results, now_iso)
+
+    # Roll the demonstrated score into the SM-2 schedule and persist mastery, so
+    # the concept resurfaces for review at the right time.
+    prior = await repo.get_mastery(db, concept_id)
+    schedule = srs.review(
+        ease=prior["ease"] if prior else 2.5,
+        interval=prior["interval"] if prior else 0,
+        score=final_overall,
+    )
+    await repo.upsert_mastery(
+        db,
+        user_id=user_id,
+        concept_id=concept_id,
+        comprehension=final_overall,
+        ease=schedule.ease,
+        interval=schedule.interval,
+        next_review=schedule.next_review.isoformat(),
+        updated_at=now_iso,
+    )
     return results
